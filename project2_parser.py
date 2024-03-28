@@ -14,107 +14,113 @@ class Token:
         self.value = value
 
 class Lexer:
-    def __init__(self, text):
-        self.text = text
-        self.pos = 0
-        self.current_char = self.text[self.pos]
+    def __init__(self, code):
+        self.code = code
+        self.position = 0
 
-    def error(self):
-        raise Exception('Invalid character')
+    # move the lexer position and identify next possible tokens.
+    def get_token(self):
+        ops = ['+','-','*','/', '(', ')']
+        comps = ['<', '>', '=', '!']
 
-    def advance(self):
-        self.pos += 1
-        if self.pos < len(self.text):
-            self.current_char = self.text[self.pos]
-        else:
-            self.current_char = None
-        if self.current_char == '\n':  # Skip over newline characters
-            self.advance()
-
-    def peek(self):
-        peek_pos = self.pos + 1
-        if peek_pos < len(self.text):
-            return self.text[peek_pos]
-        else:
+        if(self.position >= len(self.code)):
             return None
 
-    def skip_whitespace(self):
-        while self.current_char is not None and self.current_char.isspace():
-            self.advance()
+        token = self.code[self.position]
+        self.position += 1
 
-    # implement
-    def number(self):
+        # Step 1: Make sure the current token is not a space
+        while(token.isspace() and self.position < len(self.code)):
+            token = self.code[self.position]
+            self.position += 1
 
-    # implement
-    def identifier(self):
+        # Step 2: Figure out what type of token the token is (number, if, while, variable, (, ), operators, comparisons)
+        # number token
+        if(token.isdigit()):
+            while(self.code[self.position].isdigit()):
+                token += (self.code[self.position])
+                self.position += 1
+            return [token, "number"]
+        
+        # if token
+        if(token == 'i'):
+            if(self.code[self.position] == 'f'):
+                token += (self.code[self.position])
+                self.position += 1
+                if(self.code[self.position] == ' '):
+                    return [token, "if"]
+        
+        # then token
+        if(token == 't'):
+            if(self.code[self.position] == 'h'):
+                token += (self.code[self.position])
+                self.position += 1
+                if(self.code[self.position] == 'e'):
+                    token += (self.code[self.position])
+                    self.position += 1
+                    if(self.code[self.position] == 'n'):
+                        token += (self.code[self.position])
+                        self.position += 1
+                        if(self.code[self.position] == ' '):
+                            return [token, "then"]
+        
+        # else token
+        if(token == 'e'):
+            if(self.code[self.position] == 'l'):
+                token += (self.code[self.position])
+                self.position += 1
+                if(self.code[self.position] == 's'):
+                    token += (self.code[self.position])
+                    self.position += 1
+                    if(self.code[self.position] == 'e'):
+                        token += (self.code[self.position])
+                        self.position += 1
+                        if(self.code[self.position] == ' '):
+                            return [token, "else"]
+        
+        # while token.
+        if(token == 'w'):
+            if(self.code[self.position] == 'h'):
+                token += (self.code[self.position])
+                self.position += 1
+                if(self.code[self.position] == 'i'):
+                    token += (self.code[self.position])
+                    self.position += 1
+                    if(self.code[self.position] == 'l'):
+                        token += (self.code[self.position])
+                        self.position += 1
+                        if(self.code[self.position] == 'e'):
+                            token += (self.code[self.position])
+                            self.position += 1
+                            if(self.code[self.position] == ' '):
+                                return [token, "while"]
+                            
+        # do token
+        if(token == 'd'):
+            if(self.code[self.position] == 'o'):
+                token += (self.code[self.position])
+                self.position += 1
+                if(self.code[self.position] == ' '):
+                    return [token, "do"]
 
+        # variable name token
+        if(token.isalpha()):
+            while(self.code[self.position].isalpha() or self.code[self.position].isdigit()):
+                token += (self.code[self.position])
+                self.position += 1
+            return [token, "variable"]
 
-    def get_next_token(self):
-        while self.current_char is not None:
-            if self.current_char.isspace():
-                self.skip_whitespace()
-                continue
-            elif self.current_char.isdigit():
-                res = self.number()
-                if res[1] == 1:
-                    return Token('FNUMBER', res[0])
-                else:
-                    return Token('NUMBER', res[0])
-            elif self.current_char.isalpha() or self.current_char == '_':
-                return self.keyword_or_identifier()
-            elif self.current_char == '+' or self.current_char == '-' or self.current_char == '*' or self.current_char == '/':
-                return self.operator()
-            elif self.current_char == '(' or self.current_char == ')':
-                token = Token('PARENTHESIS', self.current_char)
-                self.advance()
-                return token
-            elif self.current_char == '{' or self.current_char == '}':
-                token = Token('SCOPE', self.current_char)
-                self.advance()
-                return token
-            elif self.current_char == '\n':  # Change delimiter to newline character
-                token = Token('DELIMITER', self.current_char)
-                self.advance()
-                return token
-            elif self.current_char == '!':
-                self.advance()
-                if self.current_char == '=':
-                    self.advance()
-                    return Token('OPERATOR', '!=')
-                else:
-                    self.error()
-
-            elif self.current_char == '=':
-                self.advance()
-                if self.current_char == '=':
-                    self.advance()
-                    return Token('OPERATOR', '==')
-                else:
-                    return Token('OPERATOR', '=')
-
-            elif self.current_char == '<':
-                self.advance()
-                if self.current_char == '=':
-                    self.advance()
-                    return Token('OPERATOR', '<=')
-                else:
-                    return Token('OPERATOR', '<')
-            elif self.current_char == '>':
-                self.advance()
-                if self.current_char == '=':
-                    self.advance()
-                    return Token('OPERATOR', '>=')
-                else:
-                    return Token('OPERATOR', '>')
-            else:
-                self.error()
-        return Token('EOF')
-
-    #implement
-    def keyword_or_identifier(self):
-
-    #implement
-    def operator(self):
+        # operator token
+        if(token in ops):
+            return [token, "op"]
+        
+        # single/double comparison token
+        if(token in comps):
+            if(self.code[self.position] == '='):
+                token += (self.code[self.position])
+                self.position += 1
+            return [token, "comp"]
+        return None
 
 # Parse Tree Node definitions.
 # Don't need to modify these definitions for the completion of project 2.
