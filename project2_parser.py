@@ -7,12 +7,7 @@
 # If you don't have a working lexer for project 1, we have provide a skelton of 
 # lexer. You need to complete the functions commented with tokenize.
 
-# newline lexer.
-class Token:
-    def __init__(self, token_type, value=None):
-        self.type = token_type
-        self.value = value
-
+# Lexer
 class Lexer:
     def __init__(self, code):
         self.code = code
@@ -22,6 +17,7 @@ class Lexer:
     def get_token(self):
         ops = ['+','-','*','/', '(', ')']
         comps = ['<', '>', '=', '!']
+        scope = ['{', '}']
 
         if(self.position >= len(self.code)):
             return None
@@ -35,12 +31,47 @@ class Lexer:
             self.position += 1
 
         # Step 2: Figure out what type of token the token is (number, if, while, variable, (, ), operators, comparisons)
-        # number token
+        # number/float number token
         if(token.isdigit()):
             while(self.code[self.position].isdigit()):
                 token += (self.code[self.position])
                 self.position += 1
+            if(self.code[self.position] == '.'):
+                token += (self.code[self.position])
+                self.position += 1
+                while(self.code[self.position].isdigit()):
+                    token += (self.code[self.position])
+                    self.position += 1
+                return [token, "fnumber"]
             return [token, "number"]
+        
+        # int token
+        if(token == 'i'):
+            if(self.code[self.position] == 'n'):
+                token += (self.code[self.position])
+                self.position += 1
+                if(self.code[self.position] == 't'):
+                    token += (self.code[self.position])
+                    self.position += 1
+                    if(self.code[self.position] == ' '):
+                        return [token, "int"]
+                
+        # float token.
+        if(token == 'f'):
+            if(self.code[self.position] == 'l'):
+                token += (self.code[self.position])
+                self.position += 1
+                if(self.code[self.position] == 'o'):
+                    token += (self.code[self.position])
+                    self.position += 1
+                    if(self.code[self.position] == 'a'):
+                        token += (self.code[self.position])
+                        self.position += 1
+                        if(self.code[self.position] == 't'):
+                            token += (self.code[self.position])
+                            self.position += 1
+                            if(self.code[self.position] == ' '):
+                                return [token, "float"]
         
         # if token
         if(token == 'i'):
@@ -78,7 +109,7 @@ class Lexer:
                         if(self.code[self.position] == ' '):
                             return [token, "else"]
         
-        # while token.
+        # while token
         if(token == 'w'):
             if(self.code[self.position] == 'h'):
                 token += (self.code[self.position])
@@ -120,6 +151,11 @@ class Lexer:
                 token += (self.code[self.position])
                 self.position += 1
             return [token, "comp"]
+        
+        # scope token
+        if(token in scope):
+            return [token, "scope"]
+        
         return None
 
 # Parse Tree Node definitions.
@@ -152,6 +188,7 @@ class IfStatementNode(Node):
         self.if_block = if_block
         self.else_block = else_block
 
+# loop block is the collection of statements
 class WhileLoopNode(Node):
     def __init__(self, condition, loop_block):
         self.condition = condition
@@ -303,32 +340,94 @@ class Parser:
 
 
     def parse_statement(self):
+        if(self.current_token[1] == "if"):
+            return self.parse_if_statement()
+        elif(self.current_token[1] == "while"):
+            return self.parse_while_loop()
+        else:
+            return self.parse_assignment()
 
-
+    # call checkVarDeclared.
     def parse_declaration(self):
 
 
     def parse_assignment(self):
-
+        ret = ""
+        ret += ("'" + self.current_token[0] + "', ") # append variable
+        self.advance()
+        ret = ("'" + self.current_token[0] + "', ") + ret # append '='
+        self.advance()
+        ret += (self.parse_arithmetic_expression()) # append arithmetic expression
+        return ret
 
     def parse_if_statement(self):
- 
+        ret = ""
+        ret += "'" + self.current_token[0] + "', " # append if
+        self.advance()
+        ret += self.parse_condition()
+        self.advance() # advance past the 'then'
+        ret += "(" + self.parse_statement() + ")"
+        if(self.next_token and self.next_token[1] == "else"):
+            self.advance() # advance to the "else"
+            self.advance() # advance past the "else"
+            ret += ", (" + self.parse_statement() + ")"
+        return ret
 
     def parse_while_loop(self):
-        
+        ret = ""
+        ret += "'" + self.current_token[0] + "', " # append while
+        self.advance()
+        ret += self.parse_condition()
+        self.advance() # advance past the 'do'
+        ret += "[(" + self.parse_statement() + ")]"
+        return ret
         return WhileLoopNode(condition, loop_block)
     
     # No need to check type mismatch here.
     def parse_condition(self):
-        
+        ret = ""
+        ret += self.parse_arithmetic_expression() # append arithmetic expression
+        self.advance() # advance to comparison token
+        ret = "('" + self.current_token[0] + "', " + ret + ", " # append comparison token
+        self.advance() # advance to arithmetic expression
+        ret += self.parse_arithmetic_expression() + "), " # append arithmetic expression
+        self.advance() # advance to 'then/do'
+        return ret
         return ConditionNode(left, operator, right)
 
     def parse_arithmetic_expression(self):
-
+        ret = ""
+        ret += (self.term()) # append term
+        while(self.next_token and self.next_token[1] == "op" and (self.next_token[0] == "+" or self.next_token[0] == "-")):
+            self.advance()
+            ret = ("('" + self.current_token[0] + "', ") + ret + ", "  # append op
+            self.advance()
+            ret += (self.parse_term() + ")") # append term
+        return ret
         
 
+    # checkVarUse
     def parse_term(self):
+        ret = ""
+        ret += self.parse_factor() # append factor
+        while(self.next_token and self.next_token[1] == "op" and (self.next_token[0] == "*" or self.next_token[0] == "/")):
+            self.advance()
+            ret = ("('" + self.current_token[0] + "', ") + ret + ", "  # append op
+            self.advance()
+            ret += (self.parse_factor() + ")") # append factor
+        return ret
 
-
+    # checkVarUse
     def parse_factor(self):
-
+        ret = ""
+        if(self.current_token[1] == "number"):
+            ret += (self.current_token[0])
+            return ret
+        elif(self.current_token[1] == "variable"):
+            ret += ("'" + self.current_token[0] + "'")
+            return ret
+        else:
+            self.advance() # skip the '('
+            ret += (self.parse_arithmetic_expression())
+            self.advance() # skip the ')'
+            return ret
