@@ -241,7 +241,9 @@ class FactorNode(Node):
 class Parser:
     def __init__(self, lexer):
         self.lexer = lexer
-        self.current_token = self.lexer.get_next_token()
+        self.current_token = None
+        self.next_token = self.lexer.get_token()
+        # self.current_token = self.lexer.get_token()
         # implement symbol table and scopes
        
         self.messages = []
@@ -299,43 +301,47 @@ class Parser:
 
     def eat(self, token_type):
         if self.current_token.type == token_type:
-            self.current_token = self.lexer.get_next_token()
+            self.current_token = self.lexer.get_token()
         else:
             self.error(f'Expected token of type {token_type}, but found {self.current_token.type}')
 
-    # enter the new scope in the program
-    def enter_scope(self, scope_prefix):
+    # # enter the new scope in the program
+    # def enter_scope(self, scope_prefix):
         
-    # leave the current scope
-    def leave_scope(self):
+    # # leave the current scope
+    # def leave_scope(self):
         
-    # return the current scope
-    def current_scope(self):
+    # # return the current scope
+    # def current_scope(self):
         
 
-    def checkVarDeclared(self, identifier):
+    # def checkVarDeclared(self, identifier):
         
-        if #implement :
-            self.error(f'Variable {identifier} has already been declared in the current scope')
+    #     if #implement :
+    #         self.error(f'Variable {identifier} has already been declared in the current scope')
 
     def checkVarUse(self, identifier):
         # check var declared, so we can use it.
         self.error(f'Variable {identifier} has not been declared in the current or any enclosing scopes')
 
 
-    # return false when types mismatch, otherwise ret true
-    def checkTypeMatch(self, vType, eType, var, exp):
+    # # return false when types mismatch, otherwise ret true
+    # def checkTypeMatch(self, vType, eType, var, exp):
 
-    # return its type or None if not found
-    def getMyType(self, identifier):
+    # # return its type or None if not found
+    # def getMyType(self, identifier):
       
+    # move to the next token.
+    def advance(self):
+        self.current_token = self.next_token
+        self.next_token = self.lexer.get_token()
 
     def parse_program(self):
+        self.advance()
         statements = []
-        while self.current_token.type != 'EOF':
+        while self.current_token != None:
             statements.append(self.parse_statement())
-            if self.current_token.type == 'DELIMITER':
-                self.eat('DELIMITER')
+            self.advance()
         return ProgramNode(statements)
 
 
@@ -344,90 +350,100 @@ class Parser:
             return self.parse_if_statement()
         elif(self.current_token[1] == "while"):
             return self.parse_while_loop()
+        elif(self.current_token[1] == "int" or self.current_token[1] == "float"):
+            return self.parse_declaration()
         else:
             return self.parse_assignment()
 
     # call checkVarDeclared.
     def parse_declaration(self):
-
+        type = self.current_token[0] # set the type to int or float
+        self.advance() # advance to identifier
+        identifier = self.current_token[0] # set the identifier to the variable name
+        self.advance() # advance to '='
+        self.advance() # advance to first term of the arithmetic_expression
+        expression = self.parse_arithmetic_expression() # set expression to arithmetic_expression
+        return DeclarationNode(identifier, expression, type)
 
     def parse_assignment(self):
-        ret = ""
-        ret += ("'" + self.current_token[0] + "', ") # append variable
-        self.advance()
-        ret = ("'" + self.current_token[0] + "', ") + ret # append '='
-        self.advance()
-        ret += (self.parse_arithmetic_expression()) # append arithmetic expression
-        return ret
+        identifier = self.current_token[0] # set the identifier to the variable name
+        self.advance() # advance to '='
+        self.advance() # advance to first term of the arithmetic_expression
+        expression = self.parse_arithmetic_expression() # set expression to arithmetic_expression
+        return AssignmentNode(identifier, expression)
 
     def parse_if_statement(self):
-        ret = ""
-        ret += "'" + self.current_token[0] + "', " # append if
-        self.advance()
-        ret += self.parse_condition()
+        if_block = []
+        else_block = []
+        self.advance() # advance past the 'if'
+        condition = self.parse_condition()
+        self.advance() # advance to the 'then'
         self.advance() # advance past the 'then'
-        ret += "(" + self.parse_statement() + ")"
+        self.advance() # advance past the '{'
+        while(self.current_token[0] != '}'):
+            if_block.append(self.parse_statement())
+            self.advance() # advance to next statement
         if(self.next_token and self.next_token[1] == "else"):
-            self.advance() # advance to the "else"
+            self.advance() # advance past the '}' to the "else"
             self.advance() # advance past the "else"
-            ret += ", (" + self.parse_statement() + ")"
-        return ret
+            self.advance() # advance past the '{'
+            while(self.current_token[0] != '}'):
+                else_block.append(self.parse_statement())
+                self.advance() # advance to next statement
+        return IfStatementNode(condition, if_block, else_block)
 
     def parse_while_loop(self):
-        ret = ""
-        ret += "'" + self.current_token[0] + "', " # append while
-        self.advance()
-        ret += self.parse_condition()
+        loop_block = []
+        self.advance() # advance past the 'while'
+        condition = self.parse_condition()
+        self.advance() # advance to the 'do'
         self.advance() # advance past the 'do'
-        ret += "[(" + self.parse_statement() + ")]"
-        return ret
+        self.advance() # advance past the '{'
+        while(self.current_token[0] != '}'):
+            loop_block.append(self.parse_statement())
+            self.advance() # advance to next statement
         return WhileLoopNode(condition, loop_block)
     
     # No need to check type mismatch here.
     def parse_condition(self):
-        ret = ""
-        ret += self.parse_arithmetic_expression() # append arithmetic expression
+        left = self.parse_arithmetic_expression() # set LHS arithmetic expression
         self.advance() # advance to comparison token
-        ret = "('" + self.current_token[0] + "', " + ret + ", " # append comparison token
-        self.advance() # advance to arithmetic expression
-        ret += self.parse_arithmetic_expression() + "), " # append arithmetic expression
-        self.advance() # advance to 'then/do'
-        return ret
+        operator = self.current_token[0] # set operator to comparison token
+        self.advance() # advance to RHS arithmetic expression
+        right = self.parse_arithmetic_expression() # set RHS arithmetic expression
         return ConditionNode(left, operator, right)
 
     def parse_arithmetic_expression(self):
-        ret = ""
-        ret += (self.term()) # append term
-        while(self.next_token and self.next_token[1] == "op" and (self.next_token[0] == "+" or self.next_token[0] == "-")):
+        left = self.parse_term() # set left to be equal to the LHS term
+        if(self.next_token and self.next_token[1] == "op" and (self.next_token[0] == "+" or self.next_token[0] == "-")):
             self.advance()
-            ret = ("('" + self.current_token[0] + "', ") + ret + ", "  # append op
+            operator = self.current_token[0] # set operator to be the operator
             self.advance()
-            ret += (self.parse_term() + ")") # append term
-        return ret
-        
+            right = self.parse_term() # set right to be the RHS term
+            return ArithmeticExpressionNode(operator, left, right, "int")
+        else:
+            return ArithmeticExpressionNode("None", left, "None", "int")
 
     # checkVarUse
     def parse_term(self):
-        ret = ""
-        ret += self.parse_factor() # append factor
-        while(self.next_token and self.next_token[1] == "op" and (self.next_token[0] == "*" or self.next_token[0] == "/")):
+        left = self.parse_factor() # set left to be equal to the LHS factor
+        if(self.next_token and self.next_token[1] == "op" and (self.next_token[0] == "*" or self.next_token[0] == "/")):
             self.advance()
-            ret = ("('" + self.current_token[0] + "', ") + ret + ", "  # append op
+            operator = self.current_token[0] # set operator to be the operator
             self.advance()
-            ret += (self.parse_factor() + ")") # append factor
-        return ret
+            right = self.parse_factor() # set right to be the RHS factor
+            return TermNode(operator, left, right, "int")
+        else:
+            return TermNode("None", left, "None", "int")
 
     # checkVarUse
     def parse_factor(self):
-        ret = ""
-        if(self.current_token[1] == "number"):
-            ret += (self.current_token[0])
-            return ret
+        if(self.current_token[1] == "number" or self.current_token[1] == "fnumber"):
+            return FactorNode(self.current_token[0], self.current_token[1]) # return number or fnumber as a node
         elif(self.current_token[1] == "variable"):
-            ret += ("'" + self.current_token[0] + "'")
-            return ret
+            return FactorNode(self.current_token[0], self.current_token[1]) # return variable as a node
         else:
             self.advance() # skip the '('
-            ret += (self.parse_arithmetic_expression())
+            expression = self.parse_arithmetic_expression()
             self.advance() # skip the ')'
-            return ret
+            return expression
