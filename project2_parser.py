@@ -334,13 +334,26 @@ class Parser:
     # return false when types mismatch, otherwise ret true
     # def checkTypeMatch(self, vType, eType, var, exp):
     def checkTypeMatch(self, vType, eType):
-        if((vType == 'int' and eType == 'number') or (vType == 'float' and eType == 'fnumber')):
+        if(vType == 'number'):
+            vType = 'int'
+        if(vType == 'fnumber'):
+            vType = 'float'
+        if(eType == 'number'):
+            eType = 'int'
+        if(eType == 'fnumber'):
+            eType = 'float'
+        if(vType == eType):
             return True
         self.error(f'Type Mismatch between {vType} and {eType}')
+        return False
 
-    # # return its type or None if not found
-    # def getMyType(self, identifier):
-      
+    # return its type or None if not found
+    def getMyType(self, identifier):
+        for scope in range(len(self.scope_stack) - 1, -1, -1):
+            if identifier in self.scope_stack[scope]:
+                return self.scope_stack[scope][identifier]
+        return None
+
     # move to the next token.
     def advance(self):
         self.current_token = self.next_token
@@ -370,25 +383,31 @@ class Parser:
         type = self.current_token[0] # set the type to int or float
         self.advance() # advance to identifier
         identifier = self.current_token[0] # set the identifier to the variable name
+        # check if variable was already declared
+        self.checkVarDeclared(identifier)
+
         self.advance() # advance to '='
         self.advance() # advance to first term of the arithmetic_expression
         expression = self.parse_arithmetic_expression() # set expression to arithmetic_expression
-
-        # check if variable was already declared
-        self.checkVarDeclared(identifier)
 
         # append varName: type to current scopes dictionary
         self.scope_stack[-1][identifier] = type
 
         # check if types match
         self.checkTypeMatch(type, expression.type)
+
         return DeclarationNode(identifier, expression, type)
 
     def parse_assignment(self):
         identifier = self.current_token[0] # set the identifier to the variable name
+        identifier_type = self.getMyType(identifier)
         self.advance() # advance to '='
         self.advance() # advance to first term of the arithmetic_expression
         expression = self.parse_arithmetic_expression() # set expression to arithmetic_expression
+
+        # check if types match
+        self.checkTypeMatch(identifier_type, expression.type)
+
         return AssignmentNode(identifier, expression)
 
     def parse_if_statement(self):
@@ -441,35 +460,29 @@ class Parser:
 
     def parse_arithmetic_expression(self):
         left = self.parse_term() # set left to be equal to the LHS term
-        left_type = self.current_token[1]
         if(self.next_token and self.next_token[1] == "op" and (self.next_token[0] == "+" or self.next_token[0] == "-")):
             self.advance()
             operator = self.current_token[0] # set operator to be the operator
             self.advance()
             right = self.parse_term() # set right to be the RHS term
-            right_type = self.current_token[1]
-            if(left_type == right_type):
-                return ArithmeticExpressionNode(operator, left, right, left_type)
+            if(self.checkTypeMatch(left.type, right.type) == True):
+                return ArithmeticExpressionNode(operator, left, right, left.type)
             return ArithmeticExpressionNode(operator, left, right, None)
         else:
-            # return ArithmeticExpressionNode("None", left, "None", left_type)
             return left
 
     # call checkVarUse
     def parse_term(self):
         left = self.parse_factor() # set left to be equal to the LHS factor
-        left_type = self.current_token[1]
         if(self.next_token and self.next_token[1] == "op" and (self.next_token[0] == "*" or self.next_token[0] == "/")):
             self.advance()
             operator = self.current_token[0] # set operator to be the operator
             self.advance()
             right = self.parse_factor() # set right to be the RHS factor
-            right_type = self.current_token[1]
-            if(left_type == right_type):
-                return TermNode(operator, left, right, left_type)
+            if(self.checkTypeMatch(left.type, right.type) == True):
+                return TermNode(operator, left, right, left.type)
             return TermNode(operator, left, right, None)
         else:
-            # return TermNode("None", left, "None", left_type)
             return left
 
     # call checkVarUse
@@ -478,7 +491,7 @@ class Parser:
             return FactorNode(self.current_token[0], self.current_token[1]) # return number or fnumber as a node
         elif(self.current_token[1] == "variable"):
             self.checkVarUse(self.current_token[0])
-            return FactorNode(self.current_token[0], self.current_token[1]) # return variable as a node
+            return FactorNode(self.current_token[0], self.getMyType(self.current_token[0])) # return variable as a node
         else:
             self.advance() # skip the '('
             expression = self.parse_arithmetic_expression()
